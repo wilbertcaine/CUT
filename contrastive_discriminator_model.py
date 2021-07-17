@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from downsample_layer import Downsample
 
 class Discriminator(nn.Module):
     def __init__(self, in_channels=3, features=64):
@@ -7,6 +8,7 @@ class Discriminator(nn.Module):
         layers = [
             nn.Conv2d(in_channels, features, kernel_size=4, stride=1, padding=1),
             nn.LeakyReLU(0.2, True),
+            Downsample(features)
             # nn.ReflectionPad2d(1)
         ]
         features_prev = features
@@ -18,10 +20,10 @@ class Discriminator(nn.Module):
                 nn.LeakyReLU(0.2, True)
             ]
             features_prev = features
-            # if i<2:
-            #     layers += [
-            #         nn.ReflectionPad2d(1)
-            #     ]
+            if i<2:
+                layers += [
+                    Downsample(features)
+                ]
         features = 1
         layers += [
             nn.Conv2d(features_prev, features, kernel_size=4, stride=1, padding=1)

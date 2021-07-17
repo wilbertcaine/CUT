@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-class ResnetBlock(nn.Module):
+class ResidualBlock(nn.Module):
     def __init__(self, features):
         super().__init__()
         layers = []
@@ -20,18 +20,6 @@ class ResnetBlock(nn.Module):
     def forward(self, input):
         return input + self.model(input)
 
-# class Downsample(nn.Module):
-#     def __init__(self, features):
-#         super().__init__()
-#         layers = [
-#             nn.ReflectionPad2d(1),
-#             nn.ConvTranspose2d(258, 256, kernel_size)
-#         ]
-#         self.model = nn.Sequential(*layers)
-#
-#     def forward(self, input):
-#         return self.model(input)
-
 class Generator(nn.Module):
     def __init__(self, in_channels=3, features=64, residuals=9):
         super().__init__()
@@ -45,19 +33,17 @@ class Generator(nn.Module):
         for i in range(2):
             features *= 2
             layers += [
-                nn.Conv2d(features_prev, features, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(features_prev, features, kernel_size=3, stride=2, padding=1),
                 nn.InstanceNorm2d(features),
-                nn.ReLU(True),
-                # nn.ReflectionPad2d(1)
+                nn.ReLU(True)
             ]
             features_prev = features
         for i in range(residuals):
-            layers += [ResnetBlock(features_prev)]
+            layers += [ResidualBlock(features_prev)]
         for i in range(2):
             features //= 2
             layers += [
-                # nn.ReplicationPad2d(1),
-                nn.Conv2d(features_prev, features, kernel_size=3, stride=1, padding=1),
+                nn.ConvTranspose2d(features_prev, features, kernel_size=3, stride=2, padding=1, output_padding=1),
                 nn.InstanceNorm2d(features),
                 nn.ReLU(True)
             ]
