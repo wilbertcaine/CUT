@@ -54,7 +54,7 @@ def patch_nce_loss(feat_q, feat_k):
     return loss
 
 def calculate_NCE_loss(G, src, tgt):
-    feat_k_pool, sample_ids = G(tgt, encode_only=True, patch_ids=None)
+    feat_k_pool, sample_ids = G(src, encode_only=True, patch_ids=None)
     feat_q_pool, _ = G(tgt, encode_only=True, patch_ids=sample_ids)
 
     total_nce_loss = 0.0
@@ -74,7 +74,12 @@ def main():
         betas = (0.5, 0.999),
     )
     opt_gen = optim.Adam(
-        G.parameters(),
+        G.model.parameters(),
+        lr = config.LEARNING_RATE,
+        betas = (0.5, 0.999),
+    )
+    opt_mlp = optim.Adam(
+        itertools.chain(G.mlp_0.parameters(), G.mlp_1.parameters(), G.mlp_2.parameters(), G.mlp_3.parameters(), G.mlp_4.parameters()),
         lr = config.LEARNING_RATE,
         betas = (0.5, 0.999),
     )
@@ -148,9 +153,11 @@ def main():
                 )
 
             opt_gen.zero_grad()
+            opt_mlp.zero_grad()
             g_scaler.scale(G_loss).backward()
             # G_loss.backward()
             g_scaler.step(opt_gen)
+            g_scaler.step(opt_mlp)
             # opt_gen.step()
             g_scaler.update()
 
@@ -161,14 +168,14 @@ def main():
                 save_image(Y * 0.5 + 0.5, f"saved_images_{name}/{epoch}_Y_{idx}.png")
                 if config.LAMBDA_Y>0:
                     save_image(idt_Y * 0.5 + 0.5, f"saved_images_{name}/{epoch}_idt_Y_{idx}.png")
-                # out['D_loss'] /= 100
-                # out['loss_G_Y'] /= 100
-                # out['PatchNCE_loss'] /= 100
+                out['D_loss'] /= 1000
+                out['loss_G_Y'] /= 1000
+                out['PatchNCE_loss'] /= 1000
                 print(out)
             else:
-                out['D_loss'] = D_loss.item()
-                out['loss_G_Y'] = loss_G_Y.item()
-                out['PatchNCE_loss'] = PatchNCE_loss.item()
+                out['D_loss'] += D_loss.item()
+                out['loss_G_Y'] += loss_G_Y.item()
+                out['PatchNCE_loss'] += PatchNCE_loss.item()
 
         if epoch % 5 == 0 and config.SAVE_MODEL:
             save_checkpoint(G, opt_gen, filename=f"saved_images_{name}/{epoch}_g.pth")
