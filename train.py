@@ -14,54 +14,18 @@ from contrastive_generator_model import Generator
 
 def patch_nce_loss(feat_q, feat_k):
     cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
-    mask_dtype = torch.bool
-    batchSize = feat_q.shape[0]
-    dim = feat_q.shape[1]
     feat_k = feat_k.detach()
-
-    # pos logit
-    l_pos = torch.bmm(feat_q.view(batchSize, 1, -1), feat_k.view(batchSize, -1, 1))
-    l_pos = l_pos.view(batchSize, 1)
-
-    # neg logit
-
-    # Should the negatives from the other samples of a minibatch be utilized?
-    # In CUT and FastCUT, we found that it's best to only include negatives
-    # from the same image. Therefore, we set
-    # --nce_includes_all_negatives_from_minibatch as False
-    # However, for single-image translation, the minibatch consists of
-    # crops from the "same" high-resolution image.
-    # Therefore, we will include the negatives from the entire minibatch.
-    batch_dim_for_bmm = 1
-
-    # reshape features to batch size
-    feat_q = feat_q.view(batch_dim_for_bmm, -1, dim)
-    feat_k = feat_k.view(batch_dim_for_bmm, -1, dim)
-    npatches = feat_q.size(1)
-    l_neg_curbatch = torch.bmm(feat_q, feat_k.transpose(2, 1))
-
-    # diagonal entries are similarity between same features, and hence meaningless.
-    # just fill the diagonal with very small number, which is exp(-10) and almost zero
-    diagonal = torch.eye(npatches, device=feat_q.device, dtype=mask_dtype)[None, :, :]
-    l_neg_curbatch.masked_fill_(diagonal, -10.0)
-    l_neg = l_neg_curbatch.view(-1, npatches)
-
-    out = torch.cat((l_pos, l_neg), dim=1) / 0.07
-
-    loss = cross_entropy_loss(out, torch.zeros(out.size(0), dtype=torch.long,
-                                                    device=feat_q.device))
-
+    out = torch.mm(feat_q, feat_k.transpose(1, 0)) / 0.07
+    loss = cross_entropy_loss(out, torch.arange(0, out.size(0), dtype=torch.long, device=feat_q.device))
     return loss
 
 def calculate_NCE_loss(G, src, tgt):
     feat_k_pool, sample_ids = G(src, encode_only=True, patch_ids=None)
     feat_q_pool, _ = G(tgt, encode_only=True, patch_ids=sample_ids)
-
     total_nce_loss = 0.0
     for f_q, f_k in zip(feat_q_pool, feat_k_pool):
         loss = patch_nce_loss(f_q, f_k)
         total_nce_loss += loss.mean()
-
     return total_nce_loss / 5
 
 def main():
@@ -93,7 +57,7 @@ def main():
 
     dataset = XYDataset(root_X=config.TRAIN_DIR_X, root_Y=config.TRAIN_DIR_Y, transform=config.transforms)
     val_dataset = XYDataset(root_X=config.VAL_DIR_X, root_Y=config.VAL_DIR_Y, transform=config.transforms)
-    loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS, pin_memory=True)
+    loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, pin_memory=True)
 
     g_scaler = torch.cuda.amp.GradScaler()
