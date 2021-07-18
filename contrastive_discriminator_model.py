@@ -9,7 +9,8 @@ class Discriminator(nn.Module):
             nn.Conv2d(in_channels, features, kernel_size=4, stride=1, padding=1),
             nn.LeakyReLU(0.2, True),
             Downsample(features)
-            # nn.ReflectionPad2d(1)
+            # nn.ReflectionPad2d(1),
+            # nn.Conv2d(features, features, kernel_size=3, stride=2)
         ]
         features_prev = features
         for i in range(3):
@@ -23,6 +24,8 @@ class Discriminator(nn.Module):
             if i<2:
                 layers += [
                     Downsample(features)
+                    # nn.ReflectionPad2d(1),
+                    # nn.Conv2d(features, features, kernel_size=3, stride=2)
                 ]
         features = 1
         layers += [

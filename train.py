@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import config
-from tqdm import tqdm
 from torchvision.utils import save_image
 from contrastive_discriminator_model import Discriminator
 from contrastive_generator_model import Generator
@@ -95,13 +94,18 @@ def main():
     g_scaler = torch.cuda.amp.GradScaler()
     d_scaler = torch.cuda.amp.GradScaler()
 
+    out = dict()
+
     for epoch in range(config.NUM_EPOCHS):
 
         X_reals = 0
         X_fakes = 0
-        loop = tqdm(loader, leave=False)
+        out['epoch'] = epoch
+        out['D_loss'] = 0
+        out['loss_G_Y'] = 0
+        out['PatchNCE_loss'] = 0
 
-        for idx, (X, Y) in enumerate(loop):
+        for idx, (X, Y) in enumerate(loader):
             Y = Y.to(config.DEVICE)
             X = X.to(config.DEVICE)
 
@@ -113,11 +117,13 @@ def main():
                 D_Y_real_loss = mse(D_Y_real, torch.ones_like(D_Y_real))
                 D_Y_fake_loss = mse(D_Y_fake, torch.zeros_like(D_Y_fake))
                 D_Y_loss = D_Y_real_loss + D_Y_fake_loss
-                D_loss = D_Y_loss / 2
+                D_loss = D_Y_loss
 
             opt_disc.zero_grad()
             d_scaler.scale(D_loss).backward()
+            # D_loss.backward()
             d_scaler.step(opt_disc)
+            # opt_disc.step()
             d_scaler.update()
 
             D_Y.set_requires_grad(False)
@@ -143,18 +149,26 @@ def main():
 
             opt_gen.zero_grad()
             g_scaler.scale(G_loss).backward()
+            # G_loss.backward()
             g_scaler.step(opt_gen)
+            # opt_gen.step()
             g_scaler.update()
 
-            if idx % 200 == 0:
+            if idx % 1000 == 0 and idx > 0:
                 name = config.NAME
                 save_image(X * 0.5 + 0.5, f"saved_images_{name}/{epoch}_X_{idx}.png")
                 save_image(fake_Y * 0.5 + 0.5, f"saved_images_{name}/{epoch}_fake_Y_{idx}.png")
                 save_image(Y * 0.5 + 0.5, f"saved_images_{name}/{epoch}_Y_{idx}.png")
                 if config.LAMBDA_Y>0:
                     save_image(idt_Y * 0.5 + 0.5, f"saved_images_{name}/{epoch}_idt_Y_{idx}.png")
-
-            loop.set_postfix(X_real=X_reals / (idx + 1), X_fake=X_fakes / (idx + 1))
+                # out['D_loss'] /= 100
+                # out['loss_G_Y'] /= 100
+                # out['PatchNCE_loss'] /= 100
+                print(out)
+            else:
+                out['D_loss'] = D_loss.item()
+                out['loss_G_Y'] = loss_G_Y.item()
+                out['PatchNCE_loss'] = PatchNCE_loss.item()
 
         if epoch % 5 == 0 and config.SAVE_MODEL:
             save_checkpoint(G, opt_gen, filename=f"saved_images_{name}/{epoch}_g.pth")

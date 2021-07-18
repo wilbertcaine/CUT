@@ -47,7 +47,8 @@ class Generator(nn.Module):
                 nn.InstanceNorm2d(features),
                 nn.ReLU(True),
                 Downsample(features)
-                # nn.ReflectionPad2d(1)
+                # nn.ReflectionPad2d(1),
+                # nn.Conv2d(features, features, kernel_size=3, stride=2)
             ]
             features_prev = features
         for i in range(residuals):
@@ -56,6 +57,7 @@ class Generator(nn.Module):
             features //= 2
             layers += [
                 # nn.ReplicationPad2d(1),
+                # nn.ConvTranspose2d(features_prev, features_prev, kernel_size=4, stride=2, padding=3),
                 Upsample(features_prev),
                 nn.Conv2d(features_prev, features, kernel_size=3, stride=1, padding=1),
                 nn.InstanceNorm2d(features),
@@ -104,6 +106,7 @@ class Generator(nn.Module):
             for layer_id, layer in enumerate(self.model):
                 feat = layer(feat)
                 if layer_id in [0, 4, 8, 12, 16]:
+                # if layer_id in [0, 4, 10, 14, 18]:
                     B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
                     feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
                     if num_patches > 0:
