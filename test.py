@@ -9,8 +9,8 @@ import torch.optim as optim
 import config
 from tqdm import tqdm
 from torchvision.utils import save_image
-from discriminator_model import Discriminator
-from generator_model import Generator
+from contrastive_discriminator_model import Discriminator
+from contrastive_generator_model import Generator
 
 
 def main():
