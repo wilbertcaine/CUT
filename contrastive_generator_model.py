@@ -3,30 +3,7 @@ import torch.nn as nn
 import config
 from downsample_layer import Downsample
 from upsample_layer import Upsample
-
-def normalize(x):
-    norm = x.pow(2).sum(1, keepdim=True).pow(1. / 2)
-    out = x.div(norm + 1e-7)
-    return out
-
-class ResnetBlock(nn.Module):
-    def __init__(self, features):
-        super().__init__()
-        layers = []
-        for i in range(2):
-            layers += [
-                nn.ReflectionPad2d(1),
-                nn.Conv2d(features, features, kernel_size=3),
-                nn.InstanceNorm2d(features),
-            ]
-            if i==0:
-                layers += [
-                    nn.ReLU(True)
-                ]
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, input):
-        return input + self.model(input)
+from resnet_block import ResnetBlock
 
 class Generator(nn.Module):
     def __init__(self, in_channels=3, features=64, residuals=9):
@@ -106,27 +83,21 @@ class Generator(nn.Module):
             for layer_id, layer in enumerate(self.model):
                 feat = layer(feat)
                 if layer_id in [0, 4, 8, 12, 16]:
-                # if layer_id in [0, 4, 10, 14, 18]:
                     B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
                     feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
-                    if num_patches > 0:
-                        if patch_ids is not None:
-                            patch_id = patch_ids[mlp_id]
-                        else:
-                            patch_id = torch.randperm(feat_reshape.shape[1], device=config.DEVICE) #, device=config.DEVICE
-                            patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))] # .to(patch_ids.device)
-                        x_sample = feat_reshape[:, patch_id, :].flatten(0, 1)  # reshape(-1, x.shape[1])
+                    if patch_ids is not None:
+                        patch_id = patch_ids[mlp_id]
                     else:
-                        x_sample = feat_reshape
-                        patch_id = []
+                        patch_id = torch.randperm(feat_reshape.shape[1], device=config.DEVICE) #, device=config.DEVICE
+                        patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))] # .to(patch_ids.device)
+                        return_ids.append(patch_id)
+                    x_sample = feat_reshape[:, patch_id, :].flatten(0, 1)  # reshape(-1, x.shape[1])
                     mlp = getattr(self, 'mlp_%d' % mlp_id)
                     x_sample = mlp(x_sample)
                     mlp_id += 1
-                    return_ids.append(patch_id)
-                    x_sample = normalize(x_sample)
+                    norm = x_sample.pow(2).sum(1, keepdim=True).pow(1. / 2)
+                    x_sample = x_sample.div(norm + 1e-7)
 
-                    if num_patches == 0:
-                        x_sample = x_sample.permute(0, 2, 1).reshape([B, x_sample.shape[-1], H, W])
                     return_feats.append(x_sample)
             return return_feats, return_ids
 
