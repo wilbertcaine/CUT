@@ -2,61 +2,67 @@ import torch
 import itertools
 from dataset import XYDataset
 import sys
-from utils import save_checkpoint, load_checkpoint
+from utils import save_checkpoint, load_checkpoint, transforms
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import config
-from tqdm import tqdm
 from torchvision.utils import save_image
-from contrastive_discriminator_model import Discriminator
-from contrastive_generator_model import Generator
+from contrastive_model import ContrastiveModel
 
 
 def main():
-    D_X = Discriminator().to(config.DEVICE)
-    D_Y = Discriminator().to(config.DEVICE)
-    G = Generator().to(config.DEVICE)
-    F = Generator().to(config.DEVICE)
+    model = ContrastiveModel()
 
-    opt_disc = optim.Adam(
-        itertools.chain(D_X.parameters(), D_Y.parameters()),
-        lr = config.LEARNING_RATE,
-        betas = (0.5, 0.999),
-    )
-    opt_gen = optim.Adam(
-        itertools.chain(G.parameters(), F.parameters()),
-        lr = config.LEARNING_RATE,
-        betas = (0.5, 0.999),
-    )
+    # name = config.NAME
+    # epoch = config.NUM_EPOCHS - 5
+    # if config.LOAD_MODEL:
+    #     # load_checkpoint(f"saved_images_{name}/{epoch}_g.pth", G, opt_gen, config.LEARNING_RATE,)
+    #     # load_checkpoint(f"saved_images_{name}/{epoch}_d_y.pth", D_Y, opt_disc, config.LEARNING_RATE,)
+    #     load_checkpoint(f"saved_images_{name}/{epoch}_g.pth", G, config.LEARNING_RATE,)
+    #     load_checkpoint(f"saved_images_{name}/{epoch}_d_y.pth", D_Y, config.LEARNING_RATE,)
 
-    L1 = nn.L1Loss()
-    mse = nn.MSELoss()
-
-    if config.LOAD_MODEL:
-        load_checkpoint(config.CHECKPOINT_F, F, opt_gen, config.LEARNING_RATE,)
-        load_checkpoint(config.CHECKPOINT_G, G, opt_gen, config.LEARNING_RATE,)
-        load_checkpoint(config.CHECKPOINT_D_X, D_X, opt_disc, config.LEARNING_RATE,)
-        load_checkpoint(config.CHECKPOINT_D_Y, D_Y, opt_disc, config.LEARNING_RATE,)
-
-    dataset = XYDataset(root_X=config.TRAIN_DIR_X, root_Y=config.TRAIN_DIR_Y, transform=config.transforms)
-    val_dataset = XYDataset(root_X=config.VAL_DIR_X, root_Y=config.VAL_DIR_Y, transform=config.transforms)
-    loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS, pin_memory=True)
+    dataset = XYDataset(root_X=config.TRAIN_DIR_X, root_Y=config.TRAIN_DIR_Y, transform=transforms)
+    val_dataset = XYDataset(root_X=config.VAL_DIR_X, root_Y=config.VAL_DIR_Y, transform=transforms)
+    loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, pin_memory=True)
 
-    g_scaler = torch.cuda.amp.GradScaler()
-    d_scaler = torch.cuda.amp.GradScaler()
+    # g_scaler = torch.cuda.amp.GradScaler()
+    # d_scaler = torch.cuda.amp.GradScaler()
 
-    loop = tqdm(val_loader, leave=True)
-    for idx, (X, Y) in enumerate(loop):
-        Y = Y.to(config.DEVICE)
-        X = X.to(config.DEVICE)
-        fake_X = F(Y)
-        fake_Y = G(X)
-        save_image(X * 0.5 + 0.5, f"datasets/horse2zebra/X/X_{idx}.png")
-        save_image(Y * 0.5 + 0.5, f"datasets/horse2zebra/Y/Y_{idx}.png")
-        save_image(fake_X * 0.5 + 0.5, f"datasets/horse2zebra/fake_X/X_{idx}.png")
-        save_image(fake_Y * 0.5 + 0.5, f"datasets/horse2zebra/fake_Y/Y_{idx}.png")
+    # loop = tqdm(val_loader, leave=True)
+    model.load_networks(config.NUM_EPOCHS - 5)
+    for idx, data in enumerate(val_loader):
+        model.set_input(data)
+        # model.optimize_parameters()
+        model.forward()
+        name = config.NAME
+        results = model.get_current_visuals()
+        for k, v in results.items():
+            save_image(v * 0.5 + 0.5, f"saved_images_{name}/test/{k}_{idx}.png")
+        # out_idx = 250
+        # if idx % out_idx == 0 and idx > 0:
+        #     name = config.NAME
+        #     results = model.get_current_visuals()
+        #     for k, v in results.items():
+        #         save_image(v * 0.5 + 0.5, f"saved_images_{name}/test/{epoch}_{k}_{idx}.png")
+        #     for k, v in out.items():
+        #         out[k] /= out_idx
+        #     out['epoch'] = epoch
+        #     print(out, flush=True)
+        #     for k, v in out.items():
+        #         out[k] = 0
+        # losses = model.get_current_losses()
+        # for k, v in losses.items():
+        #     if k not in out:
+        #         out[k] = 0
+        #     out[k] += v
+        # Y = Y.to(config.DEVICE)
+        # X = X.to(config.DEVICE)
+        # fake_Y = G(X)
+        # save_image(X * 0.5 + 0.5, f"saved_images_{name}/test/{idx}_X.png")
+        # save_image(Y * 0.5 + 0.5, f"saved_images_{name}/test/{idx}_Y.png")
+        # save_image(fake_Y * 0.5 + 0.5, f"saved_images_{name}/test/{idx}_fake_Y.png")
 
 
 if __name__ == "__main__":
