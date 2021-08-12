@@ -1,4 +1,4 @@
-# CycleGAN
+# [CUT](https://github.com/wilbertcaine/CUT)
 
 ## Contrastive Learning for Unpaired Image-to-Image Translation
 by Taesung Park, Alexei A. Efros, Richard Zhang, Jun-Yan Zhu
