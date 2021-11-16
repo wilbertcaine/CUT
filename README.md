@@ -20,7 +20,7 @@ _In image-to-image translation, each patch in the output should reflect the cont
 
 - Download a dataset (e.g. horse2zebra):
 ```bash
-bash ./datasets/download_cyclegan_dataset.sh horse2zebra
+bash ./datasets/download_cut_dataset.sh horse2zebra
 ```
 
 - Train a model:
